@@ -24,31 +24,14 @@ const whatsappClient = new WhatsAppClient({
     }
 });
 
-// ====================================================
-// TRUCO DETECTOR: LISTAR TODOS LOS GRUPOS AL INICIAR
-// ====================================================
-whatsappClient.on('ready', async () => {
-    console.log('¡WhatsApp conectado exitosamente!');
-    console.log('--- BUSCANDO TUS GRUPOS Y COMUNIDADES ---');
-    
-    try {
-        const chats = await whatsappClient.getChats();
-        const grupos = chats.filter(chat => chat.isGroup);
-        
-        grupos.forEach(g => {
-            console.log(`[GRUPO ENCONTRADO] Nombre: ${g.name} | ID: ${g.id._serialized}`);
-        });
-    } catch (error) {
-        console.error('Error al listar los grupos:', error);
-    }
-    
-    console.log('-----------------------------------------');
-    
-    // Iniciar Discord una vez que WhatsApp está listo
+// CUANDO WHATSAPP CONECTA CON ÉXITO
+whatsappClient.on('ready', () => {
+    console.log('¡WhatsApp conectado exitosamente y listo para enviar alertas!');
+    // Conectar a Discord solo cuando WhatsApp está listo
     discordClient.login(process.env.DISCORD_TOKEN);
 });
 
-// Mostrar el QR si por alguna razón se llega a desvincular
+// MOSTRAR QR EN CONSOLA SI LLEGA A REQUERIRSE
 whatsappClient.on('qr', (qr) => {
     console.log('--- ESCANEA ESTE CÓDIGO QR EN TU CELULAR ---');
     qrcode.generate(qr, { small: true });
@@ -58,24 +41,38 @@ discordClient.on('ready', () => {
     console.log(`Bot de Discord conectado como ${discordClient.user.tag}`);
 });
 
-// Lógica de lectura de mensajes de Discord
+// ESCUCHAR CANALES DE DISCORD Y REENVIAR RE ENVIOS DE RAID HELPER
 discordClient.on('messageCreate', async (message) => {
-    const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',');
+    // Obtener los 14 canales permitidos desde las variables
+    const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',').map(id => id.trim());
+    
     if (!canalesPermitidos.includes(message.channelId)) return;
 
-    // Verificar si el mensaje es de Raid Helper
+    // Detectar si el mensaje es un Embed enviado por el bot Raid Helper
     if (message.author.bot && message.embeds.length > 0) {
         const embed = message.embeds[0];
-        if (embed.title && embed.title.includes('Raid')) {
+        
+        // El bot reaccionará si el título del mensaje contiene la palabra 'Raid' o 'Evento'
+        if (embed.title) {
             const groupId = process.env.WHATSAPP_GROUP_ID;
+            
             if (groupId && groupId !== 'temporal') {
-                const textoAlerta = `📢 *¡Nueva Raid Programada!*\n\n*Título:* ${embed.title}\n*Descripción:* ${embed.description || 'Sin descripción'}`;
-                whatsappClient.sendMessage(groupId, textoAlerta);
-                console.log('Alerta de Raid enviada a WhatsApp');
+                const titulo = embed.title;
+                const descripcion = embed.description || 'Sin descripción adicional';
+                
+                // Formatear el mensaje bonito para WhatsApp
+                const textoAlerta = `📢 *¡ALERTA DE RAID DE DISCORD!*\n\n*Evento:* ${titulo}\n\n*Detalles:* ${descripcion}`;
+                
+                try {
+                    await whatsappClient.sendMessage(groupId, textoAlerta);
+                    console.log(`[Éxito] Alerta de Raid enviada al grupo de WhatsApp.`);
+                } catch (err) {
+                    console.error('[Error] No se pudo enviar el mensaje a WhatsApp:', err);
+                }
             }
         }
     }
 });
 
-// Arrancar el cliente de WhatsApp
+// Inicializar el cliente de WhatsApp
 whatsappClient.initialize();

@@ -117,6 +117,10 @@ async function revisarRelojRaid() {
         }
     }
 }
+// CÓDIGO TEMPORAL PARA DETECTAR EL ID DEL GRUPO
+whatsappClient.on('message', async (msg) => {
+    console.log(`[Mensaje Recibido] De: ${msg.from} | Texto: ${msg.body}`);
+});
 
 whatsappClient.initialize();
 

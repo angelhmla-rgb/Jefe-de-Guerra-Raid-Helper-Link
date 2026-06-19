@@ -11,15 +11,22 @@ const discordClient = new DiscordClient({
     ]
 });
 
-// 2. CONFIGURACIÓN DE WHATSAPP
+// 2. CONFIGURACIÓN DE WHATSAPP (CON TIEMPOS DE ESPERA Y OPTIMIZACIÓN DE RAM)
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
         executablePath: '/usr/bin/google-chrome-stable',
+        protocolTimeout: 120000, // <--- Evita el error aumentando el tiempo de espera a 2 minutos
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
-            '--unhandled-rejections=strict'
+            '--unhandled-rejections=strict',
+            '--disable-dev-shm-usage', // Usa /tmp en lugar de la memoria compartida saturada
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Agrupa procesos para consumir menos RAM en Railway
+            '--disable-gpu'
         ]
     }
 });

@@ -19,7 +19,12 @@ const discordClient = new DiscordClient({
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--unhandled-rejections=strict']
+        executablePath: '/usr/bin/google-chrome-stable', // Le dice al bot dónde está Chrome instalado en Linux
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--unhandled-rejections=strict'
+        ]
     }
 });
 

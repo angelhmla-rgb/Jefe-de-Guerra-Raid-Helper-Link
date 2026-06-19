@@ -36,22 +36,24 @@ whatsappClient.on('ready', () => {
 
 discordClient.on('ready', () => {
     console.log(`Bot de Discord conectado como ${discordClient.user.tag}`);
-    
     // Iniciar el reloj que revisa el tiempo cada 60 segundos
     setInterval(revisarRelojRaid, 60000);
 });
 
 // 3. CAPTURAR CUANDO RAID HELPER CREA O ACTUALIZA LA RAID
 discordClient.on('messageCreate', async (message) => {
-    const CANAL_RAID_HELPER = process.env.DISCORD_CHANNEL_ID;
-    if (message.channel.id !== CANAL_RAID_HELPER) return;
+    // Obtiene la lista de canales y los separa por comas
+    const CANALES_RAID_HELPER = process.env.DISCORD_CHANNEL_ID ? process.env.DISCORD_CHANNEL_ID.split(',') : [];
+    
+    // Si el canal del mensaje NO está en nuestra lista de 14 canales, ignora el mensaje
+    if (!CANALES_RAID_HELPER.includes(message.channel.id)) return;
 
     if (message.embeds.length > 0) {
         const embed = message.embeds[0];
         
         // Raid Helper incluye un Unix Timestamp en la descripción o campos (ej: <t:1718841600:F>)
         const infoTexto = (embed.description || "") + JSON.stringify(embed.fields);
-        const matchTimestamp = infoTexto.match(/<t:(\id|\d+):/);
+        const matchTimestamp = infoTexto.match(/<t:(\d+):/);
         
         if (matchTimestamp) {
             const timestampRaid = parseInt(matchTimestamp[1]) * 1000; // Convertir a milisegundos
@@ -112,3 +114,4 @@ async function revisarRelojRaid() {
 }
 
 whatsappClient.initialize();
+

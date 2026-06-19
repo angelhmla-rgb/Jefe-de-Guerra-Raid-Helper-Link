@@ -19,6 +19,7 @@ const discordClient = new DiscordClient({
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
+        executablePath: '/usr/bin/google-chrome-stable', // Ruta exacta de instalación
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 

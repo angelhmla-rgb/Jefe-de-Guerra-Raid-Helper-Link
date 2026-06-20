@@ -11,43 +11,24 @@ const discordClient = new DiscordClient({
     ]
 });
 
-// 2. CONFIGURACIÓN DE WHATSAPP (ESTABLE PARA PLAN HOBBY)
+// 2. CONFIGURACIÓN DE WHATSAPP
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
         executablePath: '/usr/bin/google-chrome-stable',
-        handleSIGINT: false,
-        handleSIGTERM: false,
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage',
-            '--disable-gpu'
+            '--unhandled-rejections=strict'
         ]
     }
 });
 
-// CUANDO WHATSAPP CONECTA CON ÉXITO (MUESTRA LOS ID DE TUS GRUPOS)
-whatsappClient.on('ready', async () => {
-    console.log('¡WhatsApp conectado exitosamente y listo para enviar alertas!');
-    
-    try {
-        console.log('--- BUSCANDO TUS GRUPOS ACTIVOS ---');
-        const chats = await whatsappClient.getChats();
-        const grupos = chats.filter(chat => chat.isGroup);
-        
-        grupos.forEach(grupo => {
-            console.log(`GRUPO: "${grupo.name}" | ID: ${grupo.id._serialized}`);
-        });
-        console.log('-----------------------------------');
-    } catch (err) {
-        console.error('Error al enlistar grupos:', err.message);
-    }
-
+whatsappClient.on('ready', () => {
+    console.log('¡WhatsApp conectado exitosamente!');
     discordClient.login(process.env.DISCORD_TOKEN);
 });
 
-// MOSTRAR QR SI ES NECESARIO
 whatsappClient.on('qr', (qr) => {
     console.log('--- ESCANEA ESTE CÓDIGO QR EN TU CELULAR ---');
     qrcode.generate(qr, { small: true });
@@ -57,35 +38,32 @@ discordClient.on('ready', () => {
     console.log(`Bot de Discord conectado como ${discordClient.user.tag}`);
 });
 
-// ESCUCHAR CANALES DE DISCORD
+// Lógica de lectura de mensajes de Discord y reenvío a WhatsApp
 discordClient.on('messageCreate', async (message) => {
-    const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',').map(id => id.trim());
-    
+    const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',');
     if (!canalesPermitidos.includes(message.channelId)) return;
 
+    // Verificar si el mensaje es de Raid Helper
     if (message.author.bot && message.embeds.length > 0) {
         const embed = message.embeds[0];
-        
-        if (embed.title) {
+        if (embed.title && embed.title.includes('Raid')) {
             const groupId = process.env.WHATSAPP_GROUP_ID;
-            if (!groupId || groupId === 'temporal') return;
-
-            const titulo = embed.title;
-            const descripcion = embed.description || 'Sin descripción adicional';
-            const textoAlerta = `📢 *¡ALERTA DE RAID DE DISCORD!*\n\n*Evento:* ${titulo}\n\n*Detalles:* ${descripcion}`;
+            const guildId = process.env.DISCORD_GUILD_ID;
             
-            try {
-                console.log(`[WhatsApp] Enviando mensaje a WhatsApp...`);
-                const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+            if (groupId && groupId !== 'temporal') {
+                // Construir el enlace directo al mensaje de Discord
+                const discordLink = `https://discord.com/channels/${guildId || '0'}/${message.channelId}/${message.id}`;
                 
-                await whatsappClient.sendMessage(formattedGroupId, textoAlerta);
-                console.log(`[Éxito] Alerta de Raid enviada al grupo de WhatsApp.`);
-            } catch (err) {
-                console.error(`[Error] No se pudo enviar el mensaje:`, err.message);
+                const textoAlerta = `📢 *¡Nueva Raid Programada!*\n\n*Título:* ${embed.title}\n*Descripción:* ${embed.description || 'Sin descripción'}\n\n📍 *Inscríbete aquí en Discord:* \n${discordLink}`;
+                
+                whatsappClient.sendMessage(groupId, textoAlerta);
+                console.log('Alerta de Raid enviada a WhatsApp con enlace directo');
             }
         }
     }
 });
 
+// Arrancar el cliente de WhatsApp
 whatsappClient.initialize();
+
 

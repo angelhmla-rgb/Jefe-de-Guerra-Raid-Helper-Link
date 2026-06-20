@@ -11,12 +11,12 @@ const discordClient = new DiscordClient({
     ]
 });
 
-// 2. CONFIGURACIÓN DE WHATSAPP (CON PARÁMETROS AGRESIVOS DE MEMORIA)
+// 2. CONFIGURACIÓN DE WHATSAPP (MÁXIMO AHORRO DE RAM - SIN IMÁGENES NI ELEMENTOS PESADOS)
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
         executablePath: '/usr/bin/google-chrome-stable',
-        protocolTimeout: 0, // Desactiva por completo el límite de tiempo de Puppeteer
+        protocolTimeout: 0, // Desactiva cortes de tiempo rígidos
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
@@ -24,7 +24,24 @@ const whatsappClient = new WhatsAppClient({
             '--disable-dev-shm-usage',
             '--disable-gpu',
             '--no-zygote',
-            '--single-process'
+            '--single-process',
+            '--disable-extensions',
+            '--disable-component-update',
+            '--blink-settings=imagesEnabled=false', // No carga imágenes
+            '--disable-audio-output', // No procesa audio
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-breakpad',
+            '--disable-client-side-phishing-detection',
+            '--disable-default-apps',
+            '--disable-hang-monitor',
+            '--disable-popup-blocking',
+            '--disable-prompt-on-repost',
+            '--metrics-recording-only',
+            '--no-first-run',
+            '--password-store=basic',
+            '--use-mock-keychain'
         ]
     }
 });
@@ -62,7 +79,6 @@ discordClient.on('messageCreate', async (message) => {
             const descripcion = embed.description || 'Sin descripción adicional';
             const textoAlerta = `📢 *¡ALERTA DE RAID DE DISCORD!*\n\n*Evento:* ${titulo}\n\n*Detalles:* ${descripcion}`;
             
-            // INTENTO DE ENVIAR CON REINTENTOS MANUALES PARA EVITAR EL TIMEOUT
             let enviado = false;
             let intentos = 0;
             
@@ -71,7 +87,6 @@ discordClient.on('messageCreate', async (message) => {
                     intentos++;
                     console.log(`[WhatsApp] Intentando enviar mensaje (Intento ${intentos})...`);
                     
-                    // Aseguramos el formato correcto del ID del grupo
                     const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
                     
                     await whatsappClient.sendMessage(formattedGroupId, textoAlerta);
@@ -81,7 +96,7 @@ discordClient.on('messageCreate', async (message) => {
                     console.error(`[Error] Intento ${intentos} falló:`, err.message);
                     if (intentos < 3) {
                         console.log('Esperando 5 segundos antes de reintentar...');
-                        await new Promise(resolve => setTimeout(resolve, 5000)); // Pausa de estabilidad
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                     } else {
                         console.error('[Error Crítico] No se pudo enviar tras 3 intentos.');
                     }

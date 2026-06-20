@@ -47,18 +47,23 @@ discordClient.on('messageCreate', async (message) => {
     if (message.author.bot && message.embeds.length > 0) {
         const embed = message.embeds[0];
         if (embed.title && embed.title.includes('Raid')) {
-            const groupId = process.env.WHATSAPP_GROUP_ID;
+            // Separar los grupos de WhatsApp por comas
+            const gidsPermitidos = (process.env.WHATSAPP_GROUP_ID || '').split(',');
             const guildId = process.env.DISCORD_GUILD_ID;
             
-            if (groupId && groupId !== 'temporal') {
-                // Construir el enlace directo al mensaje de Discord
-                const discordLink = `https://discord.com/channels/${guildId || '0'}/${message.channelId}/${message.id}`;
-                
-                const textoAlerta = `📢 *¡Nueva Raid Programada!*\n\n*Título:* ${embed.title}\n*Descripción:* ${embed.description || 'Sin descripción'}\n\n📍 *Inscríbete aquí en Discord:* \n${discordLink}`;
-                
-                whatsappClient.sendMessage(groupId, textoAlerta);
-                console.log('Alerta de Raid enviada a WhatsApp con enlace directo');
-            }
+            // Construir el enlace directo al mensaje de Discord
+            const discordLink = `https://discord.com/channels/${guildId || '0'}/${message.channelId}/${message.id}`;
+            const textoAlerta = `📢 *¡Nueva Raid Programada!*\n\n*Título:* ${embed.title}\n*Descripción:* ${embed.description || 'Sin descripción'}\n\n📍 *Inscríbete aquí en Discord:* \n${discordLink}`;
+
+            // Enviar el mensaje a cada uno de los grupos de la lista
+            gidsPermitidos.forEach(groupId => {
+                const cleanId = groupId.trim();
+                if (cleanId && cleanId !== 'temporal') {
+                    whatsappClient.sendMessage(cleanId, textoAlerta)
+                        .then(() => console.log(`Alerta de Raid enviada al grupo: ${cleanId}`))
+                        .catch(err => console.error(`Error al enviar al grupo ${cleanId}:`, err));
+                }
+            });
         }
     }
 });

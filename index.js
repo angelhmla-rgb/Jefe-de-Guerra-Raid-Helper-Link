@@ -2,10 +2,8 @@ const { Client: DiscordClient, GatewayIntentBits } = require('discord.js');
 const { Client: WhatsAppClient, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
-// Variable candado para asegurar que WhatsApp cargó por completo
 let whatsappListo = false;
 
-// 1. CONFIGURACIÓN DE DISCORD
 const discordClient = new DiscordClient({
     intents: [
         GatewayIntentBits.Guilds,
@@ -14,9 +12,11 @@ const discordClient = new DiscordClient({
     ]
 });
 
-// 2. CONFIGURACIÓN DE WHATSAPP
+// CONFIGURACIÓN CON PERSISTENCIA ACTIVADA
 const whatsappClient = new WhatsAppClient({
-    authStrategy: new LocalAuth(),
+    authStrategy: new LocalAuth({
+        dataPath: './.wwebjs_auth' 
+    }),
     puppeteer: {
         executablePath: '/usr/bin/google-chrome-stable',
         args: [
@@ -29,7 +29,7 @@ const whatsappClient = new WhatsAppClient({
 
 whatsappClient.on('ready', () => {
     console.log('¡WhatsApp conectado exitosamente y listo para enviar mensajes!');
-    whatsappListo = true; // Abrimos el candado
+    whatsappListo = true;
     discordClient.login(process.env.DISCORD_TOKEN);
 });
 
@@ -42,7 +42,6 @@ discordClient.on('ready', () => {
     console.log(`Bot de Discord conectado como ${discordClient.user.tag}`);
 });
 
-// Lógica de lectura de mensajes de Discord y reenvío a WhatsApp (Multi-grupo)
 discordClient.on('messageCreate', async (message) => {
     const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',');
     
@@ -50,31 +49,23 @@ discordClient.on('messageCreate', async (message) => {
 
     console.log(`[Discord] Mensaje detectado en canal permitido. Autor: ${message.author.tag} (Bot: ${message.author.bot})`);
 
-    // Verificar si el mensaje contiene un embed (tarjeta de Raid Helper)
     if (message.embeds.length > 0) {
         const embed = message.embeds[0];
         console.log(`[Discord] Embed encontrado. Título: "${embed.title || 'Sin Título'}"`);
 
         if (message.author.bot) {
-            // SI WHATSAPP NO ESTÁ LISTO TODAVÍA, ESPERAMOS 5 SEGUNDOS
             if (!whatsappListo) {
                 console.log('[WhatsApp] Esperando 5 segundos a que WhatsApp termine de inicializar...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
-                if (!whatsappListo) {
-                    console.log('[WhatsApp] Conexión aún no lista. Alerta cancelada para evitar crasheo.');
-                    return;
-                }
+                if (!whatsappListo) return;
             }
 
             const gidsPermitidos = (process.env.WHATSAPP_GROUP_ID || '').split(',');
             const guildId = process.env.DISCORD_GUILD_ID;
             
-            // Construir el enlace directo al mensaje de Discord
             const discordLink = `https://discord.com/channels/${guildId || '0'}/${message.channelId}/${message.id}`;
-            
             const textoAlerta = `📢 *¡Nueva Raid Programada!*\n\n*Título:* ${embed.title || 'Evento de la Hermandad'}\n*Descripción:* ${embed.description || 'Sin descripción'}\n\n📍 *Inscríbete aquí en Discord:* \n${discordLink}`;
 
-            // Enviar el mensaje a cada uno de los grupos configurados
             gidsPermitidos.forEach(groupId => {
                 const cleanId = groupId.trim();
                 if (cleanId && cleanId !== 'temporal') {
@@ -87,7 +78,5 @@ discordClient.on('messageCreate', async (message) => {
     }
 });
 
-// Arrancar el cliente de WhatsApp
 whatsappClient.initialize();
-
 

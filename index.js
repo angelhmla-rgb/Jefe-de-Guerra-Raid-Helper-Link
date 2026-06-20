@@ -27,9 +27,23 @@ const whatsappClient = new WhatsAppClient({
     }
 });
 
-// CUANDO WHATSAPP CONECTA CON ÉXITO
-whatsappClient.on('ready', () => {
+// CUANDO WHATSAPP CONECTA CON ÉXITO (MUESTRA LOS ID DE TUS GRUPOS)
+whatsappClient.on('ready', async () => {
     console.log('¡WhatsApp conectado exitosamente y listo para enviar alertas!');
+    
+    try {
+        console.log('--- BUSCANDO TUS GRUPOS ACTIVOS ---');
+        const chats = await whatsappClient.getChats();
+        const grupos = chats.filter(chat => chat.isGroup);
+        
+        grupos.forEach(grupo => {
+            console.log(`GRUPO: "${grupo.name}" | ID: ${grupo.id._serialized}`);
+        });
+        console.log('-----------------------------------');
+    } catch (err) {
+        console.error('Error al enlistar grupos:', err.message);
+    }
+
     discordClient.login(process.env.DISCORD_TOKEN);
 });
 

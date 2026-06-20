@@ -11,22 +11,20 @@ const discordClient = new DiscordClient({
     ]
 });
 
-// 2. CONFIGURACIÓN DE WHATSAPP (CON TIEMPOS DE ESPERA Y OPTIMIZACIÓN DE RAM)
+// 2. CONFIGURACIÓN DE WHATSAPP (CON PARÁMETROS AGRESIVOS DE MEMORIA)
 const whatsappClient = new WhatsAppClient({
     authStrategy: new LocalAuth(),
     puppeteer: {
         executablePath: '/usr/bin/google-chrome-stable',
-        protocolTimeout: 120000, // <--- Evita el error aumentando el tiempo de espera a 2 minutos
+        protocolTimeout: 0, // Desactiva por completo el límite de tiempo de Puppeteer
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
             '--unhandled-rejections=strict',
-            '--disable-dev-shm-usage', // Usa /tmp en lugar de la memoria compartida saturada
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
             '--no-zygote',
-            '--single-process', // Agrupa procesos para consumir menos RAM en Railway
-            '--disable-gpu'
+            '--single-process'
         ]
     }
 });
@@ -34,11 +32,10 @@ const whatsappClient = new WhatsAppClient({
 // CUANDO WHATSAPP CONECTA CON ÉXITO
 whatsappClient.on('ready', () => {
     console.log('¡WhatsApp conectado exitosamente y listo para enviar alertas!');
-    // Conectar a Discord solo cuando WhatsApp está listo
     discordClient.login(process.env.DISCORD_TOKEN);
 });
 
-// MOSTRAR QR EN CONSOLA SI LLEGA A REQUERIRSE
+// MOSTRAR QR SI ES NECESARIO
 whatsappClient.on('qr', (qr) => {
     console.log('--- ESCANEA ESTE CÓDIGO QR EN TU CELULAR ---');
     qrcode.generate(qr, { small: true });
@@ -48,38 +45,51 @@ discordClient.on('ready', () => {
     console.log(`Bot de Discord conectado como ${discordClient.user.tag}`);
 });
 
-// ESCUCHAR CANALES DE DISCORD Y REENVIAR RE ENVIOS DE RAID HELPER
+// ESCUCHAR CANALES DE DISCORD
 discordClient.on('messageCreate', async (message) => {
-    // Obtener los 14 canales permitidos desde las variables
     const canalesPermitidos = (process.env.DISCORD_CHANNEL_ID || '').split(',').map(id => id.trim());
     
     if (!canalesPermitidos.includes(message.channelId)) return;
 
-    // Detectar si el mensaje es un Embed enviado por el bot Raid Helper
     if (message.author.bot && message.embeds.length > 0) {
         const embed = message.embeds[0];
         
-        // El bot reaccionará si el título del mensaje contiene la palabra 'Raid' o 'Evento'
         if (embed.title) {
             const groupId = process.env.WHATSAPP_GROUP_ID;
+            if (!groupId || groupId === 'temporal') return;
+
+            const titulo = embed.title;
+            const descripcion = embed.description || 'Sin descripción adicional';
+            const textoAlerta = `📢 *¡ALERTA DE RAID DE DISCORD!*\n\n*Evento:* ${titulo}\n\n*Detalles:* ${descripcion}`;
             
-            if (groupId && groupId !== 'temporal') {
-                const titulo = embed.title;
-                const descripcion = embed.description || 'Sin descripción adicional';
-                
-                // Formatear el mensaje bonito para WhatsApp
-                const textoAlerta = `📢 *¡ALERTA DE RAID DE DISCORD!*\n\n*Evento:* ${titulo}\n\n*Detalles:* ${descripcion}`;
-                
+            // INTENTO DE ENVIAR CON REINTENTOS MANUALES PARA EVITAR EL TIMEOUT
+            let enviado = false;
+            let intentos = 0;
+            
+            while (!enviado && intentos < 3) {
                 try {
-                    await whatsappClient.sendMessage(groupId, textoAlerta);
+                    intentos++;
+                    console.log(`[WhatsApp] Intentando enviar mensaje (Intento ${intentos})...`);
+                    
+                    // Aseguramos el formato correcto del ID del grupo
+                    const formattedGroupId = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
+                    
+                    await whatsappClient.sendMessage(formattedGroupId, textoAlerta);
                     console.log(`[Éxito] Alerta de Raid enviada al grupo de WhatsApp.`);
+                    enviado = true;
                 } catch (err) {
-                    console.error('[Error] No se pudo enviar el mensaje a WhatsApp:', err);
+                    console.error(`[Error] Intento ${intentos} falló:`, err.message);
+                    if (intentos < 3) {
+                        console.log('Esperando 5 segundos antes de reintentar...');
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // Pausa de estabilidad
+                    } else {
+                        console.error('[Error Crítico] No se pudo enviar tras 3 intentos.');
+                    }
                 }
             }
         }
     }
 });
 
-// Inicializar el cliente de WhatsApp
 whatsappClient.initialize();
+
